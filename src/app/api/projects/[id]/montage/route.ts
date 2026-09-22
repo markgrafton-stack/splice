@@ -9,9 +9,9 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   if (!project) return NextResponse.json({ error: "Project not found." }, { status: 404 });
 
   const entries = await listEntries(projectId);
-  const readyCount = entries.filter((e) => e.status === "ready").length;
-  if (readyCount < 2) {
-    return NextResponse.json({ error: "Need at least two ready clips to build a montage." }, { status: 409 });
+  const selectedCount = entries.filter((e) => e.status === "ready" && e.selectedForMontage).length;
+  if (selectedCount < 2) {
+    return NextResponse.json({ error: "Select at least two clips to build a montage." }, { status: 409 });
   }
 
   await setProjectMontage(projectId, { montageStatus: "processing" });

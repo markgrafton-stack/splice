@@ -7,17 +7,17 @@ import { useRotatingStatus } from "@/lib/funnyStatus";
 
 export function MontagePanel({
   project,
-  readyCount,
+  selectedCount,
   onGenerate,
   generating,
 }: {
   project: Project;
-  readyCount: number;
+  selectedCount: number;
   onGenerate: () => void;
   generating: boolean;
 }) {
   const processing = project.montageStatus === "processing" || generating;
-  const canGenerate = readyCount >= 2 && !processing;
+  const canGenerate = selectedCount >= 2 && !processing;
   const statusLine = useRotatingStatus(processing);
 
   return (
@@ -31,9 +31,9 @@ export function MontagePanel({
           <p className="text-sm text-fst-ink/60 mt-1">
             {processing
               ? statusLine
-              : readyCount < 2
-                ? "Add at least two ready clips to build a montage."
-                : `Stitches the ${readyCount} ready clip${readyCount === 1 ? "" : "s"}, in the order they were added, into one GIF.`}
+              : selectedCount < 2
+                ? "Watch the collected references, then mark at least two “Add to montage” to build one."
+                : `Cuts and stitches the ${selectedCount} selected clip${selectedCount === 1 ? "" : "s"}, in the order they were added, into one GIF.`}
           </p>
         </div>
         <Button onClick={onGenerate} disabled={!canGenerate}>
@@ -45,7 +45,7 @@ export function MontagePanel({
       {project.montageStatus === "error" && (
         <div className="mt-4 flex items-center gap-2 text-sm text-fst-red">
           <AlertTriangle size={16} />
-          Montage failed — try again once more clips are ready.
+          Montage failed — check that the selected clips are still reachable and try again.
         </div>
       )}
 

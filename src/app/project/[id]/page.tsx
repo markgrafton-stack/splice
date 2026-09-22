@@ -9,7 +9,7 @@ import { PasteLinkBar } from "@/components/board/PasteLinkBar";
 import { EntryCard } from "@/components/board/EntryCard";
 import { MontagePanel } from "@/components/board/MontagePanel";
 import { MascotCameo } from "@/components/board/MascotCameo";
-import type { Project, Entry } from "@/lib/db";
+import type { Project, Entry, Rating } from "@/lib/db";
 
 export default function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -75,10 +75,10 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
     refresh();
   }, [refresh]);
 
-  // Poll while anything is still in flight — an entry resolving/downloading,
+  // Poll while anything is still in flight — an entry's metadata resolving,
   // or the montage rendering.
   useEffect(() => {
-    const anyEntryPending = entries.some((e) => e.status === "queued" || e.status === "downloading");
+    const anyEntryPending = entries.some((e) => e.status === "queued");
     const montagePending = project?.montageStatus === "processing";
     if (!anyEntryPending && !montagePending) return;
 
@@ -106,14 +106,31 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
     refresh();
   }
 
-  async function handleRegenerate(entryId: string, startSeconds: number) {
-    setEntries((prev) => prev.map((e) => (e.id === entryId ? { ...e, status: "downloading" } : e)));
+  async function handleSetOffset(entryId: string, startSeconds: number) {
+    setEntries((prev) => prev.map((e) => (e.id === entryId ? { ...e, snippetStartSeconds: startSeconds } : e)));
     await fetch(`/api/entries/${entryId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ startSeconds }),
     });
-    refresh();
+  }
+
+  async function handleRate(entryId: string, rating: Rating) {
+    setEntries((prev) => prev.map((e) => (e.id === entryId ? { ...e, rating } : e)));
+    await fetch(`/api/entries/${entryId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rating }),
+    });
+  }
+
+  async function handleToggleSelected(entryId: string, selected: boolean) {
+    setEntries((prev) => prev.map((e) => (e.id === entryId ? { ...e, selectedForMontage: selected } : e)));
+    await fetch(`/api/entries/${entryId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ selectedForMontage: selected }),
+    });
   }
 
   async function handleGenerateMontage() {
@@ -145,7 +162,13 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
     );
   }
 
-  const readyCount = entries.filter((e) => e.status === "ready").length;
+  const selectedCount = entries.filter((e) => e.status === "ready" && e.selectedForMontage).length;
+
+  // Up-voted first, then unrated, then down-voted — makes the follow-up
+  // "pick which ones to include" pass easier without needing manual
+  // drag-to-reorder. Ties keep the order links were added.
+  const rank = (r: Rating) => (r === "up" ? 0 : r === null ? 1 : 2);
+  const sortedEntries = [...entries].sort((a, b) => rank(a.rating) - rank(b.rating));
 
   return (
     <div className="min-h-screen bg-fst-cream fst-noise">
@@ -178,7 +201,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
         {project && (
           <MontagePanel
             project={project}
-            readyCount={readyCount}
+            selectedCount={selectedCount}
             onGenerate={handleGenerateMontage}
             generating={generatingMontage}
           />
@@ -190,12 +213,14 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {entries.map((entry) => (
+            {sortedEntries.map((entry) => (
               <EntryCard
                 key={entry.id}
                 entry={entry}
                 onDelete={handleDeleteEntry}
-                onRegenerate={handleRegenerate}
+                onSetOffset={handleSetOffset}
+                onRate={handleRate}
+                onToggleSelected={handleToggleSelected}
                 justReady={justReadyIds.has(entry.id)}
               />
             ))}

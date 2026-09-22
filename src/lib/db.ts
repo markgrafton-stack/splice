@@ -26,8 +26,9 @@ const POSTGRES_URL =
   process.env.SPLICE_DATABASE_URL_UNPOOLED;
 
 export type Platform = "youtube" | "vimeo" | "other";
-export type EntryStatus = "queued" | "downloading" | "ready" | "error";
+export type EntryStatus = "queued" | "ready" | "error";
 export type MontageStatus = "idle" | "processing" | "ready" | "error";
+export type Rating = "up" | "down" | null;
 
 export interface Project {
   id: string;
@@ -50,8 +51,8 @@ export interface Entry {
   durationSeconds: number | null;
   snippetStartSeconds: number | null;
   snippetLengthSeconds: number;
-  clipUrl: string | null;
-  gifUrl: string | null;
+  rating: Rating;
+  selectedForMontage: boolean;
   status: EntryStatus;
   errorMessage: string | null;
   createdAt: number;
@@ -82,13 +83,20 @@ create table if not exists entries (
   duration_seconds double precision,
   snippet_start_seconds double precision,
   snippet_length_seconds double precision not null default 3,
-  clip_url text,
-  gif_url text,
+  rating text,
+  selected_for_montage boolean not null default false,
   status text not null default 'queued',
   error_message text,
   created_at bigint not null
 );
 create index if not exists entries_project_id_idx on entries(project_id);
+-- entries predating the collect/rate/select redesign had clip_url/gif_url
+-- (per-entry rendered clips) and could still be on 'downloading' — neither
+-- concept exists anymore, so these are additive, non-destructive patches
+-- rather than a full migration.
+alter table entries add column if not exists rating text;
+alter table entries add column if not exists selected_for_montage boolean not null default false;
+update entries set status = 'queued' where status = 'downloading';
 `;
 
 const SQLITE_SCHEMA = `
@@ -112,8 +120,8 @@ create table if not exists entries (
   duration_seconds real,
   snippet_start_seconds real,
   snippet_length_seconds real not null default 3,
-  clip_url text,
-  gif_url text,
+  rating text,
+  selected_for_montage integer not null default 0,
   status text not null default 'queued',
   error_message text,
   created_at integer not null
@@ -149,8 +157,8 @@ function rowToEntry(r: any): Entry {
     durationSeconds: r.duration_seconds != null ? Number(r.duration_seconds) : null,
     snippetStartSeconds: r.snippet_start_seconds != null ? Number(r.snippet_start_seconds) : null,
     snippetLengthSeconds: Number(r.snippet_length_seconds),
-    clipUrl: r.clip_url ?? null,
-    gifUrl: r.gif_url ?? null,
+    rating: (r.rating ?? null) as Rating,
+    selectedForMontage: Boolean(r.selected_for_montage),
     status: r.status,
     errorMessage: r.error_message ?? null,
     createdAt: Number(r.created_at),
@@ -328,8 +336,8 @@ export async function insertEntry(input: {
     durationSeconds: null,
     snippetStartSeconds: null,
     snippetLengthSeconds: input.snippetLengthSeconds,
-    clipUrl: null,
-    gifUrl: null,
+    rating: null,
+    selectedForMontage: false,
     status: "queued",
     errorMessage: null,
     createdAt: now,
@@ -360,8 +368,8 @@ export async function updateEntry(
       | "thumbnailUrl"
       | "durationSeconds"
       | "snippetStartSeconds"
-      | "clipUrl"
-      | "gifUrl"
+      | "rating"
+      | "selectedForMontage"
       | "status"
       | "errorMessage"
     >
@@ -374,8 +382,8 @@ export async function updateEntry(
     thumbnailUrl: "thumbnail_url",
     durationSeconds: "duration_seconds",
     snippetStartSeconds: "snippet_start_seconds",
-    clipUrl: "clip_url",
-    gifUrl: "gif_url",
+    rating: "rating",
+    selectedForMontage: "selected_for_montage",
     status: "status",
     errorMessage: "error_message",
   };
@@ -390,7 +398,11 @@ export async function updateEntry(
   } else {
     const db = await getSqliteDb();
     const setClauses = keys.map((k) => `${columnFor[k]} = ?`);
-    const values = keys.map((k) => fields[k]);
+    // node:sqlite doesn't accept JS booleans as bind params — coerce to 0/1.
+    const values = keys.map((k) => {
+      const v = fields[k];
+      return typeof v === "boolean" ? (v ? 1 : 0) : v;
+    });
     db.prepare(`update entries set ${setClauses.join(", ")} where id = ?`).run(...values, id);
   }
 }

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { after } from "next/server";
 import { getProject, insertEntry, touchProject } from "@/lib/db";
 import { detectPlatform } from "@/lib/ytdlp";
-import { processNewEntry } from "@/lib/processEntry";
+import { resolveEntry } from "@/lib/processEntry";
 import { DEFAULT_SNIPPET_LENGTH, SNIPPET_LENGTH_OPTIONS } from "@/lib/snippet";
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -27,7 +27,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const entry = await insertEntry({ projectId, sourceUrl: url, platform, snippetLengthSeconds });
   await touchProject(projectId);
 
-  after(() => processNewEntry(entry.id));
+  after(() => resolveEntry(entry.id));
 
   return NextResponse.json({ entry }, { status: 201 });
 }

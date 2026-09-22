@@ -7,7 +7,6 @@ import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
 
 const execFileAsync = promisify(execFile);
 
-const GIF_WIDTH = 480;
 const GIF_FPS = 10;
 const MONTAGE_WIDTH = 480;
 const MONTAGE_HEIGHT = 270;
@@ -23,25 +22,6 @@ async function runFfmpeg(args: string[], timeoutMs: number): Promise<void> {
     timeout: timeoutMs,
     maxBuffer: 64 * 1024 * 1024,
   });
-}
-
-/** One clip's mp4 -> a palette-optimized GIF (single-pass palettegen/paletteuse). */
-export async function clipToGif(mp4: Buffer): Promise<Buffer> {
-  const dir = await mkdtemp(path.join(tmpdir(), "splice-gif-"));
-  const inPath = path.join(dir, "in.mp4");
-  const outPath = path.join(dir, "out.gif");
-  try {
-    await writeFile(inPath, mp4);
-    const filter = `fps=${GIF_FPS},scale=${GIF_WIDTH}:-1:flags=lanczos,split[a][b];[a]${PALETTE_GEN}[p];[b][p]${PALETTE_USE}`;
-    await runFfmpeg(["-i", inPath, "-filter_complex", filter, outPath], 60_000);
-    const bytes = await readFile(outPath);
-    if (bytes.byteLength < 500) {
-      throw new Error("GIF encode produced no usable output.");
-    }
-    return bytes;
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
 }
 
 /**
