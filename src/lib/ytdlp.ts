@@ -77,6 +77,13 @@ export interface VideoMeta {
 
 function cleanYtDlpError(err: unknown): Error {
   const stderr = (err as { stderr?: string })?.stderr ?? "";
+  // Temporary opt-in diagnostic: shows the full, unfiltered yt-dlp stderr
+  // instead of a cleaned-up message, so a specific deployment's failure can
+  // actually be seen rather than guessed at. Not meant to stay on — flip
+  // YT_DEBUG_ERRORS off once whatever's being chased is understood.
+  if (process.env.YT_DEBUG_ERRORS) {
+    return new Error(stderr.trim() || "(empty stderr)");
+  }
   // Some sources serve their video behind encrypted/DRM-protected HLS
   // segments (seen on some Vimeo hosts) that ffmpeg can't decrypt — that
   // shows up as a generic "ffmpeg exited with code 1" alongside a
