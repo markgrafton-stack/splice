@@ -7,11 +7,14 @@ import { mkdir, writeFile, unlink, readFile } from "node:fs/promises";
 import path from "node:path";
 
 // The store got connected with a custom "SPLICE" prefix (to dodge a name
-// collision with a stale placeholder var from the initial Vercel import),
-// so the token isn't under the SDK's default BLOB_READ_WRITE_TOKEN name —
-// check both, and pass the token through explicitly since the SDK only
-// auto-discovers the unprefixed default.
-const BLOB_TOKEN = process.env.BLOB_READ_WRITE_TOKEN || process.env.SPLICE_BLOB_READ_WRITE_TOKEN;
+// collision with a stale placeholder var from the initial Vercel import).
+// That prefix *replaces* the word "BLOB" in Vercel's naming rather than
+// prepending to it — confirmed directly in the dashboard — so the real name
+// is SPLICE_READ_WRITE_TOKEN, not the SPLICE_BLOB_READ_WRITE_TOKEN this
+// first assumed. Check all three, and pass the token through explicitly
+// since the SDK only auto-discovers the unprefixed default.
+const BLOB_TOKEN =
+  process.env.BLOB_READ_WRITE_TOKEN || process.env.SPLICE_READ_WRITE_TOKEN || process.env.SPLICE_BLOB_READ_WRITE_TOKEN;
 const usingVercelBlob = Boolean(BLOB_TOKEN);
 const uploadsDir = path.join(process.cwd(), "public", "uploads");
 
