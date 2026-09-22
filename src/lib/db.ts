@@ -10,13 +10,20 @@ import path from "node:path";
 
 // Vercel's own "Postgres" storage product is now a Neon integration under
 // the hood, and different setup paths (native integration vs. the Neon
-// marketplace listing) have named the injected env var differently over
-// time. Check the common ones rather than betting on exactly one name.
+// marketplace listing, and whatever custom prefix the connect-to-project
+// dialog was given to dodge a naming conflict) have named the injected env
+// var differently. Check the common ones rather than betting on exactly one
+// name — the "SPLICE_" ones matter because the actual deployed project's
+// connection got saved under that prefix.
 const POSTGRES_URL =
   process.env.POSTGRES_URL ||
   process.env.DATABASE_URL ||
   process.env.POSTGRES_PRISMA_URL ||
-  process.env.DATABASE_URL_UNPOOLED;
+  process.env.DATABASE_URL_UNPOOLED ||
+  process.env.SPLICE_POSTGRES_URL ||
+  process.env.SPLICE_DATABASE_URL ||
+  process.env.SPLICE_POSTGRES_PRISMA_URL ||
+  process.env.SPLICE_DATABASE_URL_UNPOOLED;
 
 export type Platform = "youtube" | "vimeo" | "other";
 export type EntryStatus = "queued" | "downloading" | "ready" | "error";
