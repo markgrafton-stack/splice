@@ -40,6 +40,17 @@ Some sources also can't be downloaded at all and will show a clear error on that
 - A handful of Vimeo videos serve their stream behind copy-protected (DRM) segments that can't be decrypted by this or any similar open-source tool — those entries will report "copy-protected stream."
 - Private/unlisted/login-gated videos, or a livestream, won't resolve either.
 
+### If YouTube starts blocking every link with "Sign in to confirm you're not a bot"
+
+YouTube increasingly challenges requests that come from a datacenter server (like Vercel's) rather than an ordinary home internet connection. If that starts happening:
+
+1. In Chrome, while logged into YouTube, install a cookie-export extension such as [Get cookies.txt LOCALLY](https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc), open youtube.com, and export a `cookies.txt`.
+2. **Use a throwaway/dedicated Google account for this, not a personal one.** The exported cookies are that account's live session — treat the file like a password, and if it's ever a personal account's cookies, whoever holds the file could act as that account on YouTube.
+3. Open the file, copy its full contents, and set them as the `YT_COOKIES` environment variable on the Vercel project (Settings → Environments → the relevant environment → Add Environment Variable). Mark it Sensitive.
+4. Redeploy.
+
+These session cookies expire after a while (weeks to months) — when links start failing with a sign-in error again, repeat the export and update `YT_COOKIES`.
+
 ## Notes on the video engine
 
 `yt-dlp` and `ffmpeg` both run as native binaries on the server, not in the browser (unlike chop-shop's ffmpeg.wasm, which processes files that are already local to the user). `yt-dlp` is fetched per-platform by `scripts/fetch-ytdlp.mjs` on `npm install` — the right build for whatever OS is doing the install, so this works both for local dev and for a Vercel build. `ffmpeg` comes from the `@ffmpeg-installer/ffmpeg` npm package the same way.

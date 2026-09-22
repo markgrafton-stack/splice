@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
@@ -9,6 +9,30 @@ import type { Platform } from "./db";
 const execFileAsync = promisify(execFile);
 
 const YTDLP_PATH = path.join(process.cwd(), "bin", process.platform === "win32" ? "yt-dlp.exe" : "yt-dlp");
+
+/**
+ * YouTube increasingly challenges requests from datacenter IPs (the "Sign in
+ * to confirm you're not a bot" error) — passing cookies from a real,
+ * logged-in browser session makes yt-dlp's requests look like a normal
+ * signed-in user instead. YT_COOKIES holds the *contents* of a Netscape-
+ * format cookies.txt file (exported via a browser extension), written once
+ * per warm server instance rather than re-written on every call. Unset in
+ * local dev — not needed there, and not required for this to work at all;
+ * it's a workaround for a block some deployments hit, not a hard dependency.
+ */
+let cookiesFilePromise: Promise<string | null> | null = null;
+
+async function getCookiesFile(): Promise<string | null> {
+  if (!process.env.YT_COOKIES) return null;
+  if (!cookiesFilePromise) {
+    cookiesFilePromise = (async () => {
+      const file = path.join(tmpdir(), "splice-yt-cookies.txt");
+      await writeFile(file, process.env.YT_COOKIES as string, "utf8");
+      return file;
+    })();
+  }
+  return cookiesFilePromise;
+}
 
 /** Only youtube.com/youtu.be/vimeo.com links are accepted anywhere in the
  * app — this is the one gate everything else relies on. Reject early rather
@@ -61,6 +85,13 @@ function cleanYtDlpError(err: unknown): Error {
   if (stderr.includes("SAMPLE-AES") || stderr.includes("Not yet implemented in FFmpeg")) {
     return new Error("This source serves a copy-protected stream that can't be downloaded.");
   }
+  if (stderr.includes("Sign in to confirm you're not a bot")) {
+    return new Error(
+      process.env.YT_COOKIES
+        ? "YouTube blocked this request even with cookies set — they may have expired and need re-exporting."
+        : "YouTube is blocking this server as a bot. Needs a YT_COOKIES env var set — ask whoever deployed this to add it."
+    );
+  }
   // yt-dlp's own "ERROR: ..." line is the useful part otherwise; the rest is
   // a raw command/path dump that's noise (and leaks local file paths).
   const line = stderr
@@ -75,10 +106,19 @@ function cleanYtDlpError(err: unknown): Error {
 }
 
 async function runYtDlp(args: string[], timeoutMs: number): Promise<string> {
+  const cookiesFile = await getCookiesFile();
   try {
     const { stdout } = await execFileAsync(
       YTDLP_PATH,
-      ["--no-warnings", "--ignore-config", "--no-playlist", "--ffmpeg-location", ffmpegInstaller.path, ...args],
+      [
+        "--no-warnings",
+        "--ignore-config",
+        "--no-playlist",
+        "--ffmpeg-location",
+        ffmpegInstaller.path,
+        ...(cookiesFile ? ["--cookies", cookiesFile] : []),
+        ...args,
+      ],
       { timeout: timeoutMs, maxBuffer: 64 * 1024 * 1024 }
     );
     return stdout;
