@@ -39,6 +39,7 @@ export interface Project {
   montageStatus: MontageStatus;
   montageGifUrl: string | null;
   montageUpdatedAt: number | null;
+  montageErrorMessage: string | null;
 }
 
 export interface Entry {
@@ -71,7 +72,8 @@ create table if not exists projects (
   updated_at bigint not null,
   montage_status text not null default 'idle',
   montage_gif_url text,
-  montage_updated_at bigint
+  montage_updated_at bigint,
+  montage_error_message text
 );
 create table if not exists entries (
   id text primary key,
@@ -97,6 +99,7 @@ create index if not exists entries_project_id_idx on entries(project_id);
 alter table entries add column if not exists rating text;
 alter table entries add column if not exists selected_for_montage boolean not null default false;
 update entries set status = 'queued' where status = 'downloading';
+alter table projects add column if not exists montage_error_message text;
 `;
 
 const SQLITE_SCHEMA = `
@@ -108,7 +111,8 @@ create table if not exists projects (
   updated_at integer not null,
   montage_status text not null default 'idle',
   montage_gif_url text,
-  montage_updated_at integer
+  montage_updated_at integer,
+  montage_error_message text
 );
 create table if not exists entries (
   id text primary key,
@@ -142,6 +146,7 @@ function rowToProject(r: any): Project {
     montageStatus: r.montage_status,
     montageGifUrl: r.montage_gif_url ?? null,
     montageUpdatedAt: r.montage_updated_at != null ? Number(r.montage_updated_at) : null,
+    montageErrorMessage: r.montage_error_message ?? null,
   };
 }
 
@@ -226,7 +231,17 @@ export async function createProject(name: string, clientTag: string | null): Pro
       "insert into projects (id, name, client_tag, created_at, updated_at) values (?,?,?,?,?)"
     ).run(id, name, clientTag, now, now);
   }
-  return { id, name, clientTag, createdAt: now, updatedAt: now, montageStatus: "idle", montageGifUrl: null, montageUpdatedAt: null };
+  return {
+    id,
+    name,
+    clientTag,
+    createdAt: now,
+    updatedAt: now,
+    montageStatus: "idle",
+    montageGifUrl: null,
+    montageUpdatedAt: null,
+    montageErrorMessage: null,
+  };
 }
 
 export async function getProject(id: string): Promise<Project | undefined> {
@@ -264,7 +279,7 @@ export async function touchProject(id: string): Promise<void> {
 
 export async function setProjectMontage(
   id: string,
-  fields: Partial<Pick<Project, "montageStatus" | "montageGifUrl" | "montageUpdatedAt">>
+  fields: Partial<Pick<Project, "montageStatus" | "montageGifUrl" | "montageUpdatedAt" | "montageErrorMessage">>
 ): Promise<void> {
   // Each field is only touched if the caller actually passed it — setting
   // montageStatus alone (e.g. flipping to "processing") must not clobber an
@@ -273,6 +288,7 @@ export async function setProjectMontage(
     montageStatus: "montage_status",
     montageGifUrl: "montage_gif_url",
     montageUpdatedAt: "montage_updated_at",
+    montageErrorMessage: "montage_error_message",
   } as const;
   const keys = (Object.keys(fields) as (keyof typeof columnFor)[]).filter((k) => fields[k] !== undefined);
   if (keys.length === 0) return;

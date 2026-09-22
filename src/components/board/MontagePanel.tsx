@@ -43,9 +43,9 @@ export function MontagePanel({
       </div>
 
       {project.montageStatus === "error" && (
-        <div className="mt-4 flex items-center gap-2 text-sm text-fst-red">
-          <AlertTriangle size={16} />
-          Montage failed — check that the selected clips are still reachable and try again.
+        <div className="mt-4 flex items-start gap-2 text-sm text-fst-red">
+          <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+          <span>{project.montageErrorMessage || "Montage failed — check that the selected clips are still reachable and try again."}</span>
         </div>
       )}
 
@@ -63,6 +63,9 @@ export function MontagePanel({
               Download GIF
             </Button>
           </a>
+          {project.montageErrorMessage && (
+            <p className="text-xs text-fst-ink/50 text-center max-w-md">{project.montageErrorMessage}</p>
+          )}
         </div>
       )}
     </div>
