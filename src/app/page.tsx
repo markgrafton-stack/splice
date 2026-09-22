@@ -10,6 +10,7 @@ interface ProjectSummary {
   id: string;
   name: string;
   clientTag: string | null;
+  description: string | null;
   updatedAt: number;
   montageStatus: "idle" | "processing" | "ready" | "error";
 }
@@ -213,6 +214,9 @@ function ProjectCard({ project }: { project: ProjectSummary }) {
         <span className="inline-block mt-2 px-2 py-0.5 rounded-full text-[11px] bg-fst-red/10 text-fst-red font-medium">
           {project.clientTag}
         </span>
+      )}
+      {project.description && (
+        <p className="text-xs text-fst-ink/50 mt-2 line-clamp-2">{project.description}</p>
       )}
       <div className="flex items-center gap-1 mt-4 text-xs text-fst-ink/50">
         <Clock size={12} /> {new Date(project.updatedAt).toLocaleDateString()}

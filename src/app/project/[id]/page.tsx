@@ -2,13 +2,14 @@
 
 import { use, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Trash2 } from "lucide-react";
+import { ArrowLeft, Trash2, Pencil } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/Button";
 import { PasteLinkBar } from "@/components/board/PasteLinkBar";
 import { EntryCard } from "@/components/board/EntryCard";
 import { MontagePanel } from "@/components/board/MontagePanel";
 import { MascotCameo } from "@/components/board/MascotCameo";
+import { EditBoardModal } from "@/components/board/EditBoardModal";
 import type { Project, Entry, Rating } from "@/lib/db";
 
 export default function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
@@ -21,6 +22,8 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   const [generatingMontage, setGeneratingMontage] = useState(false);
   const [justReadyIds, setJustReadyIds] = useState<Set<string>>(new Set());
   const [showCameo, setShowCameo] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
   const inFlight = useRef(false);
 
   const refresh = useCallback(async () => {
@@ -154,6 +157,27 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
     refresh();
   }
 
+  async function handleSaveDetails(fields: { name: string; clientTag: string; description: string }) {
+    setSavingEdit(true);
+    const res = await fetch(`/api/projects/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: fields.name,
+        clientTag: fields.clientTag,
+        description: fields.description,
+      }),
+    });
+    setSavingEdit(false);
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      window.alert(data?.error ?? "Couldn't save those details.");
+      return;
+    }
+    setShowEdit(false);
+    refresh();
+  }
+
   async function handleDeleteProject() {
     if (!confirm("Delete this board and everything on it? This can't be undone.")) return;
     await fetch(`/api/projects/${id}`, { method: "DELETE" });
@@ -189,22 +213,45 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
             </button>
             <Logo size={32} />
             <div className="min-w-0">
-              <div className="font-display text-lg leading-none truncate">{project?.name ?? "Loading…"}</div>
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="font-display text-lg leading-none truncate">{project?.name ?? "Loading…"}</span>
+                {project?.clientTag && (
+                  <span className="shrink-0 px-2 py-0.5 rounded-full text-[11px] bg-fst-red/10 text-fst-red font-medium">
+                    {project.clientTag}
+                  </span>
+                )}
+              </div>
               <div className="text-xs text-fst-ink/60 leading-none mt-1">Splice by fst</div>
             </div>
           </div>
-          <button
-            onClick={handleDeleteProject}
-            className="text-fst-ink/40 hover:text-fst-red shrink-0"
-            aria-label="Delete board"
-            title="Delete board"
-          >
-            <Trash2 size={18} />
-          </button>
+          <div className="flex items-center gap-3 shrink-0">
+            {project && (
+              <button
+                onClick={() => setShowEdit(true)}
+                className="text-fst-ink/40 hover:text-fst-black"
+                aria-label="Edit board details"
+                title="Edit board details"
+              >
+                <Pencil size={17} />
+              </button>
+            )}
+            <button
+              onClick={handleDeleteProject}
+              className="text-fst-ink/40 hover:text-fst-red"
+              aria-label="Delete board"
+              title="Delete board"
+            >
+              <Trash2 size={18} />
+            </button>
+          </div>
         </div>
       </header>
 
       <main className="max-w-6xl mx-auto px-6 py-8 space-y-6">
+        {project?.description && (
+          <p className="text-sm text-fst-ink/70 -mt-2 whitespace-pre-wrap">{project.description}</p>
+        )}
+
         <PasteLinkBar onAdd={handleAdd} />
 
         {project && (
@@ -239,6 +286,10 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
       </main>
 
       {showCameo && <MascotCameo onDismiss={() => setShowCameo(false)} />}
+
+      {showEdit && project && (
+        <EditBoardModal project={project} saving={savingEdit} onCancel={() => setShowEdit(false)} onSave={handleSaveDetails} />
+      )}
     </div>
   );
 }

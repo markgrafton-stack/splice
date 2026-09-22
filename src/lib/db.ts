@@ -34,6 +34,7 @@ export interface Project {
   id: string;
   name: string;
   clientTag: string | null;
+  description: string | null;
   createdAt: number;
   updatedAt: number;
   montageStatus: MontageStatus;
@@ -68,6 +69,7 @@ create table if not exists projects (
   id text primary key,
   name text not null,
   client_tag text,
+  description text,
   created_at bigint not null,
   updated_at bigint not null,
   montage_status text not null default 'idle',
@@ -100,6 +102,7 @@ alter table entries add column if not exists rating text;
 alter table entries add column if not exists selected_for_montage boolean not null default false;
 update entries set status = 'queued' where status = 'downloading';
 alter table projects add column if not exists montage_error_message text;
+alter table projects add column if not exists description text;
 `;
 
 const SQLITE_SCHEMA = `
@@ -107,6 +110,7 @@ create table if not exists projects (
   id text primary key,
   name text not null,
   client_tag text,
+  description text,
   created_at integer not null,
   updated_at integer not null,
   montage_status text not null default 'idle',
@@ -141,6 +145,7 @@ function rowToProject(r: any): Project {
     id: r.id,
     name: r.name,
     clientTag: r.client_tag ?? null,
+    description: r.description ?? null,
     createdAt: Number(r.created_at),
     updatedAt: Number(r.updated_at),
     montageStatus: r.montage_status,
@@ -235,6 +240,7 @@ export async function createProject(name: string, clientTag: string | null): Pro
     id,
     name,
     clientTag,
+    description: null,
     createdAt: now,
     updatedAt: now,
     montageStatus: "idle",
@@ -242,6 +248,34 @@ export async function createProject(name: string, clientTag: string | null): Pro
     montageUpdatedAt: null,
     montageErrorMessage: null,
   };
+}
+
+export async function updateProject(
+  id: string,
+  fields: Partial<Pick<Project, "name" | "clientTag" | "description">>
+): Promise<void> {
+  const columnFor = {
+    name: "name",
+    clientTag: "client_tag",
+    description: "description",
+  } as const;
+  const keys = (Object.keys(fields) as (keyof typeof columnFor)[]).filter((k) => fields[k] !== undefined);
+  if (keys.length === 0) return;
+
+  if (usingPostgres) {
+    const pool = await getPgPool();
+    const setClauses = keys.map((k, i) => `${columnFor[k]} = $${i + 1}`);
+    const values = keys.map((k) => fields[k]);
+    await pool.query(`update projects set ${setClauses.join(", ")} where id = $${keys.length + 1}`, [
+      ...values,
+      id,
+    ]);
+  } else {
+    const db = await getSqliteDb();
+    const setClauses = keys.map((k) => `${columnFor[k]} = ?`);
+    const values = keys.map((k) => fields[k]);
+    db.prepare(`update projects set ${setClauses.join(", ")} where id = ?`).run(...values, id);
+  }
 }
 
 export async function getProject(id: string): Promise<Project | undefined> {
