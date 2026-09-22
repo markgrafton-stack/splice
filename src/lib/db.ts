@@ -1,11 +1,22 @@
 // Two backends behind one small query surface:
-//  - POSTGRES_URL set  -> real Postgres (the shared team database, via `pg`)
-//  - POSTGRES_URL unset -> a local SQLite file (Node's built-in node:sqlite),
-//    so `npm install && npm run dev` works with zero setup, same as chop-shop.
+//  - a Postgres connection string is set -> real Postgres (the shared team
+//    database, via `pg`)
+//  - none set -> a local SQLite file (Node's built-in node:sqlite), so
+//    `npm install && npm run dev` works with zero setup, same as chop-shop.
 // Everything outside this file only calls the functions below — the
 // Postgres/SQLite dialect difference (placeholders, timestamp handling)
 // lives entirely here.
 import path from "node:path";
+
+// Vercel's own "Postgres" storage product is now a Neon integration under
+// the hood, and different setup paths (native integration vs. the Neon
+// marketplace listing) have named the injected env var differently over
+// time. Check the common ones rather than betting on exactly one name.
+const POSTGRES_URL =
+  process.env.POSTGRES_URL ||
+  process.env.DATABASE_URL ||
+  process.env.POSTGRES_PRISMA_URL ||
+  process.env.DATABASE_URL_UNPOOLED;
 
 export type Platform = "youtube" | "vimeo" | "other";
 export type EntryStatus = "queued" | "downloading" | "ready" | "error";
@@ -39,7 +50,7 @@ export interface Entry {
   createdAt: number;
 }
 
-const usingPostgres = Boolean(process.env.POSTGRES_URL);
+const usingPostgres = Boolean(POSTGRES_URL);
 
 // ---- schema (same shape expressed twice, once per dialect) ----------------
 
@@ -148,7 +159,7 @@ async function getPgPool() {
   if (!pgPoolPromise) {
     pgPoolPromise = (async () => {
       const { Pool } = await import("pg");
-      const pool = new Pool({ connectionString: process.env.POSTGRES_URL });
+      const pool = new Pool({ connectionString: POSTGRES_URL });
       await pool.query(PG_SCHEMA);
       return pool;
     })();
