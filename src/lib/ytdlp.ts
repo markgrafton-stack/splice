@@ -108,6 +108,19 @@ function cleanYtDlpError(err: unknown): Error {
   return new Error("Couldn't reach that link's source site.");
 }
 
+// YouTube actively blocks known datacenter IP ranges (Vercel's included) —
+// this is an ongoing, evolving fight between YouTube and tools like yt-dlp,
+// not a one-time bug with a permanent fix. Two mitigations: a realistic
+// browser User-Agent (YouTube can quietly return blocked/empty results to
+// yt-dlp's own default UA specifically from cloud IPs) and a configurable
+// player-client fallback list (YT_PLAYER_CLIENT) so it can be retuned
+// without a code change when YouTube's blocking shifts again — check
+// https://github.com/yt-dlp/yt-dlp/issues for the current best value if
+// clips start failing again after cookies are confirmed working.
+const BROWSER_USER_AGENT =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+const PLAYER_CLIENTS = process.env.YT_PLAYER_CLIENT || "default,web_embedded,android,ios";
+
 async function runYtDlp(args: string[], timeoutMs: number): Promise<string> {
   const cookiesFile = await getCookiesFile();
   try {
@@ -119,12 +132,10 @@ async function runYtDlp(args: string[], timeoutMs: number): Promise<string> {
         "--no-playlist",
         "--ffmpeg-location",
         ffmpegInstaller.path,
-        // YouTube periodically breaks specific "player clients" yt-dlp's
-        // default selection can land on, surfacing as "The page needs to be
-        // reloaded" (a known, recurring yt-dlp/YouTube cat-and-mouse issue,
-        // not specific to this app). Forcing a fallback list sidesteps it.
+        "--user-agent",
+        BROWSER_USER_AGENT,
         "--extractor-args",
-        "youtube:player_client=default,web_embedded",
+        `youtube:player_client=${PLAYER_CLIENTS}`,
         ...(cookiesFile ? ["--cookies", cookiesFile] : []),
         ...args,
       ],

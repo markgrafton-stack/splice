@@ -42,16 +42,21 @@ Some sources also can't be downloaded at all — this only surfaces once you gen
 - A handful of Vimeo videos serve their stream behind copy-protected (DRM) segments that can't be decrypted by this or any similar open-source tool.
 - Private/unlisted/login-gated videos, or a livestream, won't resolve at all — usually visible earlier, at the collecting stage, since even the embedded player won't play those.
 
-### If YouTube starts blocking every link with "Sign in to confirm you're not a bot"
+### If YouTube starts blocking links from the deployed site
 
-YouTube increasingly challenges requests that come from a datacenter server (like Vercel's) rather than an ordinary home internet connection. If that starts happening:
+This is a genuine, ongoing fight between YouTube and tools like yt-dlp over requests from datacenter IPs (Vercel's included) — not a one-time bug with a permanent fix, and it can resurface even after being fixed once. Two independent things to try, and it's worth trying both since they address different layers of the blocking:
 
+**"Sign in to confirm you're not a bot":**
 1. In Chrome, while logged into YouTube, install a cookie-export extension such as [Get cookies.txt LOCALLY](https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc), open youtube.com, and export a `cookies.txt`.
 2. **Use a throwaway/dedicated Google account for this, not a personal one.** The exported cookies are that account's live session — treat the file like a password, and if it's ever a personal account's cookies, whoever holds the file could act as that account on YouTube.
 3. Open the file, copy its full contents, and set them as the `YT_COOKIES` environment variable on the Vercel project (Settings → Environments → the relevant environment → Add Environment Variable). Mark it Sensitive.
 4. Redeploy.
 
 These session cookies expire after a while (weeks to months) — when links start failing with a sign-in error again, repeat the export and update `YT_COOKIES`.
+
+**"The page needs to be reloaded" (a different block, can happen even with valid cookies):**
+
+The app already sends a real browser User-Agent and tries several YouTube "player client" fallbacks (`default,web_embedded,android,ios`) to work around this. If it's still happening, the specific clients that currently work shift over time as YouTube changes things — check [yt-dlp's open issues](https://github.com/yt-dlp/yt-dlp/issues) for whatever client combination people are currently reporting success with, then set it as the `YT_PLAYER_CLIENT` environment variable (comma-separated, same format as above) and redeploy — no code change needed.
 
 ## Notes on the video engine
 
