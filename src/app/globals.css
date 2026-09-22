@@ -40,34 +40,44 @@ body {
   color: var(--fst-cream);
 }
 
-.fst-noise {
-  background-image: radial-gradient(var(--fst-line) 1px, transparent 1px);
-  background-size: 16px 16px;
-}
+/* Tailwind v4 places its own utilities inside @layer utilities; plain CSS
+ * written outside any @layer is "unlayered" and, per the CSS Cascade Layers
+ * spec, unlayered styles always beat layered ones regardless of source
+ * order or specificity. Without this @layer wrapper, .fst-input's width:
+ * 100% silently overrides a utility like sm:w-32 on the same element
+ * (exactly the bug that squashed the paste-link bar down to a sliver) —
+ * wrapping these in @layer components puts them in the normal cascade so a
+ * utility class applied alongside one of these still wins as expected. */
+@layer components {
+  .fst-noise {
+    background-image: radial-gradient(var(--fst-line) 1px, transparent 1px);
+    background-size: 16px 16px;
+  }
 
-.fst-scrollbar::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-.fst-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
-}
-.fst-scrollbar::-webkit-scrollbar-thumb {
-  background: var(--fst-line);
-  border-radius: 999px;
-}
+  .fst-scrollbar::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  .fst-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .fst-scrollbar::-webkit-scrollbar-thumb {
+    background: var(--fst-line);
+    border-radius: 999px;
+  }
 
-.fst-input {
-  width: 100%;
-  padding: 0.5rem 0.75rem;
-  border-radius: 0.75rem;
-  border: 2px solid color-mix(in srgb, var(--fst-black) 15%, transparent);
-  background: white;
-  font-size: 0.875rem;
-  outline: none;
-}
-.fst-input:focus {
-  border-color: var(--fst-black);
+  .fst-input {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.75rem;
+    border: 2px solid color-mix(in srgb, var(--fst-black) 15%, transparent);
+    background: white;
+    font-size: 0.875rem;
+    outline: none;
+  }
+  .fst-input:focus {
+    border-color: var(--fst-black);
+  }
 }
 
 @keyframes splice-flash {
