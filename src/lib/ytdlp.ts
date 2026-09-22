@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile, access } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
@@ -9,6 +9,7 @@ import type { Platform } from "./db";
 const execFileAsync = promisify(execFile);
 
 const YTDLP_PATH = path.join(process.cwd(), "bin", process.platform === "win32" ? "yt-dlp.exe" : "yt-dlp");
+const DENO_PATH = path.join(process.cwd(), "bin", process.platform === "win32" ? "deno.exe" : "deno");
 
 /**
  * YouTube increasingly challenges requests from datacenter IPs (the "Sign in
@@ -75,18 +76,37 @@ export interface VideoMeta {
   thumbnailUrl: string | null;
 }
 
-// TEMPORARY: unconditionally surfaces the full, unfiltered yt-dlp stderr
-// instead of a cleaned-up friendly message — the env-var-gated version of
-// this turned out to be one more fiddly dashboard step to get wrong, so
-// this removes that as a variable entirely while diagnosing the live
-// block. The previous version (SAMPLE-AES / bot-check / reload / generic
-// ERROR-line messages) is recoverable from git history — restore it once
-// the live failure is actually understood. This leaks local file paths
-// into the error, only acceptable as a short-lived debugging aid.
 function cleanYtDlpError(err: unknown): Error {
   const stderr = (err as { stderr?: string })?.stderr ?? "";
-  const message = err instanceof Error ? err.message : String(err);
-  return new Error(`RAW: ${stderr.trim() || "(empty stderr)"} | err: ${message}`);
+  // Some sources serve their video behind encrypted/DRM-protected HLS
+  // segments (seen on some Vimeo hosts) that ffmpeg can't decrypt — that
+  // shows up as a generic "ffmpeg exited with code 1" alongside a
+  // SAMPLE-AES/"Not yet implemented" line buried in the log, not as a
+  // yt-dlp ERROR: line, so it needs its own check before the generic one.
+  if (stderr.includes("SAMPLE-AES") || stderr.includes("Not yet implemented in FFmpeg")) {
+    return new Error("This source serves a copy-protected stream that can't be downloaded.");
+  }
+  if (stderr.includes("Sign in to confirm you're not a bot")) {
+    return new Error(
+      process.env.YT_COOKIES
+        ? "YouTube blocked this request even with cookies set — they may have expired and need re-exporting."
+        : "YouTube is blocking this server as a bot. Needs a YT_COOKIES env var set — ask whoever deployed this to add it."
+    );
+  }
+  if (stderr.includes("The page needs to be reloaded")) {
+    return new Error("YouTube had a hiccup serving this video — try again in a moment.");
+  }
+  // yt-dlp's own "ERROR: ..." line is the useful part otherwise; the rest is
+  // a raw command/path dump that's noise (and leaks local file paths).
+  const line = stderr
+    .split("\n")
+    .map((l) => l.trim())
+    .find((l) => l.startsWith("ERROR:"));
+  if (line) return new Error(line.replace(/^ERROR:\s*/, ""));
+  if (err instanceof Error && (err as { killed?: boolean }).killed) {
+    return new Error("Timed out talking to the source site — try again in a moment.");
+  }
+  return new Error("Couldn't reach that link's source site.");
 }
 
 // YouTube actively blocks known datacenter IP ranges (Vercel's included) —
@@ -102,8 +122,26 @@ const BROWSER_USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 const PLAYER_CLIENTS = process.env.YT_PLAYER_CLIENT || "default,web_embedded,android,ios";
 
+// As of late 2026, yt-dlp needs an external JS runtime to solve YouTube's
+// signature/n-challenge — without one, extraction silently degrades (or
+// outright fails with "The page needs to be reloaded") even with valid
+// cookies and every player client tried, which is what was actually
+// happening here: neither this environment nor the deployed one had one.
+// bin/deno is fetched per-platform by scripts/fetch-deno.mjs on install,
+// same pattern as yt-dlp/ffmpeg.
+let denoAvailablePromise: Promise<boolean> | null = null;
+async function denoAvailable(): Promise<boolean> {
+  if (!denoAvailablePromise) {
+    denoAvailablePromise = access(DENO_PATH)
+      .then(() => true)
+      .catch(() => false);
+  }
+  return denoAvailablePromise;
+}
+
 async function runYtDlp(args: string[], timeoutMs: number): Promise<string> {
   const cookiesFile = await getCookiesFile();
+  const hasDeno = await denoAvailable();
   try {
     const { stdout } = await execFileAsync(
       YTDLP_PATH,
@@ -117,6 +155,7 @@ async function runYtDlp(args: string[], timeoutMs: number): Promise<string> {
         BROWSER_USER_AGENT,
         "--extractor-args",
         `youtube:player_client=${PLAYER_CLIENTS}`,
+        ...(hasDeno ? ["--js-runtimes", `deno:${DENO_PATH}`] : []),
         ...(cookiesFile ? ["--cookies", cookiesFile] : []),
         ...args,
       ],

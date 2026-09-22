@@ -10,7 +10,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "postinstall": "node scripts/fetch-ytdlp.mjs"
+    "postinstall": "node scripts/fetch-ytdlp.mjs && node scripts/fetch-deno.mjs"
   },
   "dependencies": {
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
