@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getEntry, updateEntry, deleteEntry, touchProject, type Rating } from "@/lib/db";
+import { SNIPPET_LENGTH_OPTIONS } from "@/lib/snippet";
 
 /**
  * Purely a metadata update — nudging the start offset, rating, or toggling
@@ -39,6 +40,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: "selectedForMontage must be a boolean." }, { status: 400 });
     }
     fields.selectedForMontage = body.selectedForMontage;
+  }
+
+  if (body && "snippetLengthSeconds" in body) {
+    if (!SNIPPET_LENGTH_OPTIONS.includes(body.snippetLengthSeconds)) {
+      return NextResponse.json({ error: `snippetLengthSeconds must be one of ${SNIPPET_LENGTH_OPTIONS.join(", ")}.` }, { status: 400 });
+    }
+    fields.snippetLengthSeconds = body.snippetLengthSeconds;
   }
 
   if (Object.keys(fields).length === 0) {

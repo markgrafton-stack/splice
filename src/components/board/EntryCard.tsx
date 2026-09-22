@@ -6,12 +6,14 @@ import clsx from "clsx";
 import type { Entry, Rating } from "@/lib/db";
 import { useRotatingStatus } from "@/lib/funnyStatus";
 import { toEmbedUrl } from "@/lib/embedUrl";
+import { SNIPPET_LENGTH_OPTIONS } from "@/lib/snippet";
 import { EntryFlash } from "./EntryFlash";
 
 export function EntryCard({
   entry,
   onDelete,
   onSetOffset,
+  onSetLength,
   onRate,
   onToggleSelected,
   justReady,
@@ -19,6 +21,7 @@ export function EntryCard({
   entry: Entry;
   onDelete: (id: string) => void;
   onSetOffset: (id: string, startSeconds: number) => void;
+  onSetLength: (id: string, lengthSeconds: number) => void;
   onRate: (id: string, rating: Rating) => void;
   onToggleSelected: (id: string, selected: boolean) => void;
   justReady?: boolean;
@@ -148,7 +151,7 @@ export function EntryCard({
               </button>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <input
                 type="number"
                 min={0}
@@ -165,6 +168,18 @@ export function EntryCard({
               >
                 Set start point
               </button>
+              <select
+                value={entry.snippetLengthSeconds}
+                onChange={(e) => onSetLength(entry.id, Number(e.target.value))}
+                className="fst-input py-1 text-xs w-auto ml-auto"
+                title="How much of this clip goes into the montage"
+              >
+                {SNIPPET_LENGTH_OPTIONS.map((s) => (
+                  <option key={s} value={s}>
+                    {s}s
+                  </option>
+                ))}
+              </select>
             </div>
           </>
         )}

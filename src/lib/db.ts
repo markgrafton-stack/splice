@@ -368,6 +368,7 @@ export async function updateEntry(
       | "thumbnailUrl"
       | "durationSeconds"
       | "snippetStartSeconds"
+      | "snippetLengthSeconds"
       | "rating"
       | "selectedForMontage"
       | "status"
@@ -382,6 +383,7 @@ export async function updateEntry(
     thumbnailUrl: "thumbnail_url",
     durationSeconds: "duration_seconds",
     snippetStartSeconds: "snippet_start_seconds",
+    snippetLengthSeconds: "snippet_length_seconds",
     rating: "rating",
     selectedForMontage: "selected_for_montage",
     status: "status",

@@ -86,11 +86,11 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
     return () => clearInterval(interval);
   }, [entries, project?.montageStatus, refresh]);
 
-  async function handleAdd(url: string, snippetLengthSeconds: number): Promise<string | null> {
+  async function handleAdd(url: string): Promise<string | null> {
     const res = await fetch(`/api/projects/${id}/entries`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url, snippetLengthSeconds }),
+      body: JSON.stringify({ url }),
     });
     if (!res.ok) {
       const data = await res.json().catch(() => null);
@@ -112,6 +112,15 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ startSeconds }),
+    });
+  }
+
+  async function handleSetLength(entryId: string, lengthSeconds: number) {
+    setEntries((prev) => prev.map((e) => (e.id === entryId ? { ...e, snippetLengthSeconds: lengthSeconds } : e)));
+    await fetch(`/api/entries/${entryId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ snippetLengthSeconds: lengthSeconds }),
     });
   }
 
@@ -219,6 +228,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
                 entry={entry}
                 onDelete={handleDeleteEntry}
                 onSetOffset={handleSetOffset}
+                onSetLength={handleSetLength}
                 onRate={handleRate}
                 onToggleSelected={handleToggleSelected}
                 justReady={justReadyIds.has(entry.id)}
