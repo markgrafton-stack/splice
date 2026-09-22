@@ -66,7 +66,7 @@ export default function Dashboard() {
           <div className="flex items-center gap-3">
             <Logo size={40} />
             <div>
-              <div className="font-display text-lg leading-none">splice</div>
+              <div className="font-display text-lg leading-none">Splice</div>
               <div className="text-xs text-fst-ink/60 leading-none mt-1">by fst</div>
             </div>
           </div>
@@ -76,6 +76,15 @@ export default function Dashboard() {
           </Button>
         </div>
       </header>
+
+      <div className="max-w-6xl mx-auto px-6 pt-8 flex justify-center">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/brand/splice-mascot.png"
+          alt="The Splice mascot, a walking film camera holding a clapperboard that reads Splice by FST"
+          className="h-64 sm:h-80 md:h-96 w-auto"
+        />
+      </div>
 
       <main className="max-w-6xl mx-auto px-6 py-12">
         <div className="mb-8">

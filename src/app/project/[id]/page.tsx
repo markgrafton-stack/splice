@@ -124,7 +124,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
             <Logo size={32} />
             <div className="min-w-0">
               <div className="font-display text-lg leading-none truncate">{project?.name ?? "Loading…"}</div>
-              <div className="text-xs text-fst-ink/60 leading-none mt-1">splice by fst</div>
+              <div className="text-xs text-fst-ink/60 leading-none mt-1">Splice by fst</div>
             </div>
           </div>
           <button
