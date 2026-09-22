@@ -92,6 +92,9 @@ function cleanYtDlpError(err: unknown): Error {
         : "YouTube is blocking this server as a bot. Needs a YT_COOKIES env var set — ask whoever deployed this to add it."
     );
   }
+  if (stderr.includes("The page needs to be reloaded")) {
+    return new Error("YouTube had a hiccup serving this video — try regenerating this entry in a moment.");
+  }
   // yt-dlp's own "ERROR: ..." line is the useful part otherwise; the rest is
   // a raw command/path dump that's noise (and leaks local file paths).
   const line = stderr
@@ -116,6 +119,12 @@ async function runYtDlp(args: string[], timeoutMs: number): Promise<string> {
         "--no-playlist",
         "--ffmpeg-location",
         ffmpegInstaller.path,
+        // YouTube periodically breaks specific "player clients" yt-dlp's
+        // default selection can land on, surfacing as "The page needs to be
+        // reloaded" (a known, recurring yt-dlp/YouTube cat-and-mouse issue,
+        // not specific to this app). Forcing a fallback list sidesteps it.
+        "--extractor-args",
+        "youtube:player_client=default,web_embedded",
         ...(cookiesFile ? ["--cookies", cookiesFile] : []),
         ...args,
       ],
