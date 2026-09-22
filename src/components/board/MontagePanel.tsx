@@ -3,6 +3,7 @@
 import { Loader2, Download, Film, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/Button";
 import type { Project } from "@/lib/db";
+import { useRotatingStatus } from "@/lib/funnyStatus";
 
 export function MontagePanel({
   project,
@@ -15,7 +16,9 @@ export function MontagePanel({
   onGenerate: () => void;
   generating: boolean;
 }) {
-  const canGenerate = readyCount >= 2 && !generating && project.montageStatus !== "processing";
+  const processing = project.montageStatus === "processing" || generating;
+  const canGenerate = readyCount >= 2 && !processing;
+  const statusLine = useRotatingStatus(processing);
 
   return (
     <div className="rounded-2xl border-2 border-fst-black bg-white p-5">
@@ -26,17 +29,15 @@ export function MontagePanel({
             Montage
           </h2>
           <p className="text-sm text-fst-ink/60 mt-1">
-            {readyCount < 2
-              ? "Add at least two ready clips to build a montage."
-              : `Stitches the ${readyCount} ready clip${readyCount === 1 ? "" : "s"}, in the order they were added, into one GIF.`}
+            {processing
+              ? statusLine
+              : readyCount < 2
+                ? "Add at least two ready clips to build a montage."
+                : `Stitches the ${readyCount} ready clip${readyCount === 1 ? "" : "s"}, in the order they were added, into one GIF.`}
           </p>
         </div>
         <Button onClick={onGenerate} disabled={!canGenerate}>
-          {project.montageStatus === "processing" || generating ? (
-            <Loader2 size={16} className="animate-spin" />
-          ) : (
-            <Film size={16} />
-          )}
+          {processing ? <Loader2 size={16} className="animate-spin" /> : <Film size={16} />}
           {project.montageStatus === "ready" ? "Regenerate montage" : "Generate montage"}
         </Button>
       </div>

@@ -3,17 +3,23 @@
 import { useEffect, useState } from "react";
 import { Loader2, X, RotateCw, ExternalLink, AlertTriangle } from "lucide-react";
 import type { Entry } from "@/lib/db";
+import { useRotatingStatus } from "@/lib/funnyStatus";
+import { EntryFlash } from "./EntryFlash";
 
 export function EntryCard({
   entry,
   onDelete,
   onRegenerate,
+  justReady,
 }: {
   entry: Entry;
   onDelete: (id: string) => void;
   onRegenerate: (id: string, startSeconds: number) => void;
+  justReady?: boolean;
 }) {
   const [offset, setOffset] = useState<number>(Math.round(entry.snippetStartSeconds ?? 0));
+  const pending = entry.status === "queued" || entry.status === "downloading";
+  const statusLine = useRotatingStatus(pending);
 
   // The field is only shown once resolved (ready/error) and hides again the
   // moment a regenerate kicks off, so it's safe to resync here without ever
@@ -36,14 +42,16 @@ export function EntryCard({
           <div className="w-full h-full flex items-center justify-center text-fst-ink/30 text-xs">no preview yet</div>
         )}
 
-        {(entry.status === "queued" || entry.status === "downloading") && (
+        {pending && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/30">
             <div className="flex items-center gap-2 text-white text-xs font-medium bg-black/50 rounded-full px-3 py-1.5">
               <Loader2 size={14} className="animate-spin" />
-              {entry.status === "queued" ? "Queued…" : "Downloading & rendering…"}
+              {statusLine}
             </div>
           </div>
         )}
+
+        {justReady && <EntryFlash />}
 
         {entry.status === "error" && (
           <div className="absolute inset-0 flex items-center justify-center bg-fst-red/10">

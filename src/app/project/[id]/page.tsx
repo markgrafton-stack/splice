@@ -8,6 +8,7 @@ import { Button } from "@/components/Button";
 import { PasteLinkBar } from "@/components/board/PasteLinkBar";
 import { EntryCard } from "@/components/board/EntryCard";
 import { MontagePanel } from "@/components/board/MontagePanel";
+import { MascotCameo } from "@/components/board/MascotCameo";
 import type { Project, Entry } from "@/lib/db";
 
 export default function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
@@ -18,6 +19,8 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   const [entries, setEntries] = useState<Entry[]>([]);
   const [notFound, setNotFound] = useState(false);
   const [generatingMontage, setGeneratingMontage] = useState(false);
+  const [justReadyIds, setJustReadyIds] = useState<Set<string>>(new Set());
+  const [showCameo, setShowCameo] = useState(false);
   const inFlight = useRef(false);
 
   const refresh = useCallback(async () => {
@@ -31,7 +34,38 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
       }
       const data = await res.json();
       setProject(data.project);
-      setEntries(data.entries);
+
+      // Flash any entry that flipped to "ready" since the last poll — but
+      // only a genuine transition, not an entry that was already ready the
+      // first time this board loads.
+      setEntries((prev) => {
+        const prevStatus = new Map(prev.map((e) => [e.id, e.status]));
+        const newlyReady: string[] = data.entries
+          .filter((e: Entry) => e.status === "ready" && prevStatus.get(e.id) && prevStatus.get(e.id) !== "ready")
+          .map((e: Entry) => e.id);
+        if (newlyReady.length > 0) {
+          setJustReadyIds((cur) => new Set([...cur, ...newlyReady]));
+          setTimeout(() => {
+            setJustReadyIds((cur) => {
+              const next = new Set(cur);
+              newlyReady.forEach((entryId: string) => next.delete(entryId));
+              return next;
+            });
+          }, 900);
+        }
+        return data.entries;
+      });
+
+      // Celebrate the first time this browser ever sees a ready montage for
+      // this board — a plain localStorage flag is enough since it's just a
+      // one-off flourish, not something that needs to sync across people.
+      if (data.project.montageStatus === "ready") {
+        const key = `splice-celebrated:${id}`;
+        if (typeof window !== "undefined" && !localStorage.getItem(key)) {
+          localStorage.setItem(key, "1");
+          setShowCameo(true);
+        }
+      }
     } finally {
       inFlight.current = false;
     }
@@ -157,11 +191,19 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {entries.map((entry) => (
-              <EntryCard key={entry.id} entry={entry} onDelete={handleDeleteEntry} onRegenerate={handleRegenerate} />
+              <EntryCard
+                key={entry.id}
+                entry={entry}
+                onDelete={handleDeleteEntry}
+                onRegenerate={handleRegenerate}
+                justReady={justReadyIds.has(entry.id)}
+              />
             ))}
           </div>
         )}
       </main>
+
+      {showCameo && <MascotCameo onDismiss={() => setShowCameo(false)} />}
     </div>
   );
 }
