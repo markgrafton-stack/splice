@@ -75,44 +75,18 @@ export interface VideoMeta {
   thumbnailUrl: string | null;
 }
 
+// TEMPORARY: unconditionally surfaces the full, unfiltered yt-dlp stderr
+// instead of a cleaned-up friendly message — the env-var-gated version of
+// this turned out to be one more fiddly dashboard step to get wrong, so
+// this removes that as a variable entirely while diagnosing the live
+// block. The previous version (SAMPLE-AES / bot-check / reload / generic
+// ERROR-line messages) is recoverable from git history — restore it once
+// the live failure is actually understood. This leaks local file paths
+// into the error, only acceptable as a short-lived debugging aid.
 function cleanYtDlpError(err: unknown): Error {
   const stderr = (err as { stderr?: string })?.stderr ?? "";
-  // Temporary opt-in diagnostic: shows the full, unfiltered yt-dlp stderr
-  // instead of a cleaned-up message, so a specific deployment's failure can
-  // actually be seen rather than guessed at. Not meant to stay on — flip
-  // YT_DEBUG_ERRORS off once whatever's being chased is understood.
-  if (process.env.YT_DEBUG_ERRORS) {
-    return new Error(stderr.trim() || "(empty stderr)");
-  }
-  // Some sources serve their video behind encrypted/DRM-protected HLS
-  // segments (seen on some Vimeo hosts) that ffmpeg can't decrypt — that
-  // shows up as a generic "ffmpeg exited with code 1" alongside a
-  // SAMPLE-AES/"Not yet implemented" line buried in the log, not as a
-  // yt-dlp ERROR: line, so it needs its own check before the generic one.
-  if (stderr.includes("SAMPLE-AES") || stderr.includes("Not yet implemented in FFmpeg")) {
-    return new Error("This source serves a copy-protected stream that can't be downloaded.");
-  }
-  if (stderr.includes("Sign in to confirm you're not a bot")) {
-    return new Error(
-      process.env.YT_COOKIES
-        ? "YouTube blocked this request even with cookies set — they may have expired and need re-exporting."
-        : "YouTube is blocking this server as a bot. Needs a YT_COOKIES env var set — ask whoever deployed this to add it."
-    );
-  }
-  if (stderr.includes("The page needs to be reloaded")) {
-    return new Error("YouTube had a hiccup serving this video — try regenerating this entry in a moment.");
-  }
-  // yt-dlp's own "ERROR: ..." line is the useful part otherwise; the rest is
-  // a raw command/path dump that's noise (and leaks local file paths).
-  const line = stderr
-    .split("\n")
-    .map((l) => l.trim())
-    .find((l) => l.startsWith("ERROR:"));
-  if (line) return new Error(line.replace(/^ERROR:\s*/, ""));
-  if (err instanceof Error && (err as { killed?: boolean }).killed) {
-    return new Error("Timed out talking to the source site — try again in a moment.");
-  }
-  return new Error("Couldn't reach that link's source site.");
+  const message = err instanceof Error ? err.message : String(err);
+  return new Error(`RAW: ${stderr.trim() || "(empty stderr)"} | err: ${message}`);
 }
 
 // YouTube actively blocks known datacenter IP ranges (Vercel's included) —
