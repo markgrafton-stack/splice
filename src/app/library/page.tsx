@@ -151,7 +151,7 @@ function LibraryCard({ entry, projects }: { entry: LibraryEntry; projects: Proje
               Added
             </div>
           ) : targets.length === 0 ? (
-            <p className="text-xs text-fst-ink/40">No other boards yet</p>
+            <p className="text-xs text-fst-ink/40">Create another board to copy this into</p>
           ) : (
             <div className="relative">
               <select
