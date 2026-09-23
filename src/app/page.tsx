@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/Button";
-import { Plus, Clock, Film, Image as ImageIcon, X } from "lucide-react";
+import { Plus, Clock, Film, Image as ImageIcon, X, LibraryBig } from "lucide-react";
 
 interface ProjectSummary {
   id: string;
@@ -71,10 +71,16 @@ export default function Dashboard() {
               <div className="text-xs text-fst-ink/60 leading-none mt-1">by fst</div>
             </div>
           </div>
-          <Button onClick={() => setShowCreate(true)} disabled={creating}>
-            <Plus size={16} strokeWidth={3} />
-            New board
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" onClick={() => router.push("/library")}>
+              <LibraryBig size={16} />
+              Library
+            </Button>
+            <Button onClick={() => setShowCreate(true)} disabled={creating}>
+              <Plus size={16} strokeWidth={3} />
+              New board
+            </Button>
+          </div>
         </div>
       </header>
 

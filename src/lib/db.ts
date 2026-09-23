@@ -357,6 +357,42 @@ export async function listEntries(projectId: string): Promise<Entry[]> {
   return rows.map(rowToEntry);
 }
 
+export interface LibraryEntry extends Entry {
+  projectName: string;
+  projectClientTag: string | null;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function rowToLibraryEntry(r: any): LibraryEntry {
+  return {
+    ...rowToEntry(r),
+    projectName: r.project_name,
+    projectClientTag: r.project_client_tag ?? null,
+  };
+}
+
+/** Every resolved entry across every board, newest first — a cross-project
+ * reference library so a past find doesn't need re-hunting for when a new
+ * project comes along. Queued/error entries are left out; they're not
+ * useful as references yet (or ever, for the errored ones). */
+export async function listAllEntries(): Promise<LibraryEntry[]> {
+  const sql = `
+    select entries.*, projects.name as project_name, projects.client_tag as project_client_tag
+    from entries
+    join projects on projects.id = entries.project_id
+    where entries.status = 'ready'
+    order by entries.created_at desc
+  `;
+  if (usingPostgres) {
+    const pool = await getPgPool();
+    const { rows } = await pool.query(sql);
+    return rows.map(rowToLibraryEntry);
+  }
+  const db = await getSqliteDb();
+  const rows = db.prepare(sql).all();
+  return rows.map(rowToLibraryEntry);
+}
+
 export async function getEntry(id: string): Promise<Entry | undefined> {
   if (usingPostgres) {
     const pool = await getPgPool();
@@ -407,6 +443,81 @@ export async function insertEntry(input: {
     ).run(id, entry.projectId, entry.sourceUrl, entry.platform, entry.snippetLengthSeconds, entry.status, now);
   }
   return entry;
+}
+
+/** Copies a library entry's already-known metadata straight into another
+ * board — status is "ready" immediately, no yt-dlp round trip needed since
+ * the title/thumbnail/duration are already known good from wherever this
+ * was first resolved. */
+export async function insertResolvedEntry(input: {
+  projectId: string;
+  sourceUrl: string;
+  platform: Platform;
+  title: string | null;
+  thumbnailUrl: string | null;
+  durationSeconds: number | null;
+  snippetStartSeconds: number | null;
+  snippetLengthSeconds: number;
+}): Promise<Entry> {
+  const id = crypto.randomUUID();
+  const now = Date.now();
+  const entry: Entry = {
+    id,
+    projectId: input.projectId,
+    sourceUrl: input.sourceUrl,
+    platform: input.platform,
+    title: input.title,
+    thumbnailUrl: input.thumbnailUrl,
+    durationSeconds: input.durationSeconds,
+    snippetStartSeconds: input.snippetStartSeconds,
+    snippetLengthSeconds: input.snippetLengthSeconds,
+    rating: null,
+    selectedForMontage: false,
+    status: "ready",
+    errorMessage: null,
+    createdAt: now,
+  };
+  const cols =
+    "id, project_id, source_url, platform, title, thumbnail_url, duration_seconds, snippet_start_seconds, snippet_length_seconds, status, created_at";
+  const values = [
+    id,
+    entry.projectId,
+    entry.sourceUrl,
+    entry.platform,
+    entry.title,
+    entry.thumbnailUrl,
+    entry.durationSeconds,
+    entry.snippetStartSeconds,
+    entry.snippetLengthSeconds,
+    entry.status,
+    now,
+  ];
+  if (usingPostgres) {
+    const pool = await getPgPool();
+    const placeholders = values.map((_, i) => `$${i + 1}`).join(",");
+    await pool.query(`insert into entries (${cols}) values (${placeholders})`, values);
+  } else {
+    const db = await getSqliteDb();
+    const placeholders = values.map(() => "?").join(",");
+    db.prepare(`insert into entries (${cols}) values (${placeholders})`).run(...values);
+  }
+  return entry;
+}
+
+/** Cheap dedupe check before copying a library entry into a board — no
+ * point in the same reference showing up twice on one board. */
+export async function entryExistsInProject(projectId: string, sourceUrl: string): Promise<boolean> {
+  if (usingPostgres) {
+    const pool = await getPgPool();
+    const { rows } = await pool.query("select 1 from entries where project_id = $1 and source_url = $2 limit 1", [
+      projectId,
+      sourceUrl,
+    ]);
+    return rows.length > 0;
+  }
+  const db = await getSqliteDb();
+  const row = db.prepare("select 1 from entries where project_id = ? and source_url = ? limit 1").get(projectId, sourceUrl);
+  return Boolean(row);
 }
 
 export async function updateEntry(

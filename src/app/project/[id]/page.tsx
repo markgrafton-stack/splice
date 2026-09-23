@@ -2,7 +2,7 @@
 
 import { use, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Trash2, Pencil } from "lucide-react";
+import { ArrowLeft, Trash2, Pencil, LibraryBig } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/Button";
 import { PasteLinkBar } from "@/components/board/PasteLinkBar";
@@ -225,6 +225,14 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
             </div>
           </div>
           <div className="flex items-center gap-3 shrink-0">
+            <button
+              onClick={() => router.push("/library")}
+              className="text-fst-ink/40 hover:text-fst-black"
+              aria-label="Open library"
+              title="Open library"
+            >
+              <LibraryBig size={18} />
+            </button>
             {project && (
               <button
                 onClick={() => setShowEdit(true)}
